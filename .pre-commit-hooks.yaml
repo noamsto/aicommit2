@@ -1,0 +1,6 @@
+- id: aicommit2
+  name: Prepare commit message using AI
+  language: node
+  entry: aic2
+  stages:
+      - prepare-commit-msg

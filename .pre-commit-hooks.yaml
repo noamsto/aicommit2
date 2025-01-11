@@ -1,0 +1,7 @@
+- id: aicommit2
+  name: aicommit2
+  description: 'A Reactive CLI that generates git commit messages with Ollama, ChatGPT, Gemini, Claude, Mistral and other AI'
+  entry: aic2 -y
+  stages: [prepare-commit-msg]
+  language: node
+  types: [text]

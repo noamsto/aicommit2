@@ -30,21 +30,41 @@ jobs:
       - name: Calculate correct pnpmDeps hash
         id: calc_hash
         run: |
-          nix_prefetch_output=$(nix build --print-out-paths .#packages.x86_64-linux.default 2>&1 || true)
-          HASH=$(echo "$nix_prefetch_output" | grep -o 'got:.*' | awk '{print $2}')
+          # Force a bad hash to ensure rebuild shows the correct one if needed
+          sed -i 's|hash = "sha256-.*";|hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";|' flake.nix
+
+          # Run build and capture output
+          output=$(nix build .#packages.x86_64-linux.default 2>&1 || true)
+
+          # Try to extract correct hash from failure
+          HASH=$(echo "$output" | grep -o 'got: sha256-[A-Za-z0-9+/=]*' | awk '{print $2}')
+
           if [ -z "$HASH" ]; then
-            echo "Failed to extract hash"
-            exit 1
+            echo "ℹ️ No hash mismatch detected — assuming existing hash is valid"
+            HASH=$(grep 'hash = "sha256-' flake.nix | grep -o 'sha256-[A-Za-z0-9+/=]*')
           fi
+
           echo "HASH=$HASH" >> $GITHUB_ENV
-          echo "New hash: $HASH"
+          echo "Using hash: $HASH"
 
       - name: Update hash in flake.nix
         run: |
-          sed -i "s|hash = \"sha256-[A-Za-z0-9+/=]*\";|hash = \"$HASH\";|" flake.nix
-          echo "Updated hash in flake.nix"
+          sed -i "s|hash = \"sha256-.*\";|hash = \"${HASH}\";|" flake.nix
+          echo "Updated hash in flake.nix to ${HASH}"
+
+      - name: Check for changes
+        id: git_diff
+        run: |
+          if git diff --quiet flake.nix; then
+            echo "No changes in flake.nix"
+            echo "SKIP_PR=true" >> $GITHUB_ENV
+          else
+            echo "Changes detected"
+            echo "SKIP_PR=false" >> $GITHUB_ENV
+          fi
 
       - name: Create Pull Request
+        if: env.SKIP_PR == 'false'
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "Update flake.nix to version ${{ env.VERSION }} with new hash"

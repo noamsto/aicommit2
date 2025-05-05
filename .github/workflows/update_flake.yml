@@ -30,22 +30,24 @@ jobs:
       - name: Calculate correct pnpmDeps hash
         id: calc_hash
         run: |
-          # Force a bad hash to ensure rebuild shows the correct one if needed
-          sed -i 's|hash = "sha256-.*";|hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";|' flake.nix
+          # Step 1: Inject deliberately invalid hash
+          sed -i 's|hash = "sha256-.*";|hash = "sha256-INVALIDHASHPLACEHOLDER000000000000000000000=";|' flake.nix
 
-          # Run build and capture output
+          # Step 2: Trigger build and capture expected failure output
           output=$(nix build .#packages.x86_64-linux.default 2>&1 || true)
 
-          # Try to extract correct hash from failure
+          # Step 3: Extract real hash from build output
           HASH=$(echo "$output" | grep -o 'got: sha256-[A-Za-z0-9+/=]*' | awk '{print $2}')
 
-          if [ -z "$HASH" ]; then
-            echo "ℹ️ No hash mismatch detected — assuming existing hash is valid"
-            HASH=$(grep 'hash = "sha256-' flake.nix | grep -o 'sha256-[A-Za-z0-9+/=]*')
+          if [[ -z "$HASH" || "$HASH" == *"INVALIDHASHPLACEHOLDER"* ]]; then
+            echo "❌ Failed to extract a valid hash from Nix build output."
+            echo "Build output:"
+            echo "$output"
+            exit 1
           fi
 
+          echo "✅ Got new hash: $HASH"
           echo "HASH=$HASH" >> $GITHUB_ENV
-          echo "Using hash: $HASH"
 
       - name: Update hash in flake.nix
         run: |

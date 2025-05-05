@@ -34,10 +34,10 @@ jobs:
           sed -i 's|hash = "sha256-.*";|hash = "sha256-INVALIDHASHPLACEHOLDER000000000000000000000=";|' flake.nix
 
           # Step 2: Run the build to trigger mismatch
-          output=$(nix build .#packages.x86_64-linux.default 2>&1 || true)
+          nix_prefetch_output=$(nix build --print-out-paths .#packages.x86_64-linux.default 2>&1 || true)
 
           # Step 3: Extract the correct hash from output
-          HASH=$(echo "$output" | grep 'got: sha256-' | sed -E 's/.*got: (sha256-[A-Za-z0-9+/=]+).*/\1/')
+          HASH=$(echo "$nix_prefetch_output" | grep -o 'got:.*' | awk '{print $2}')
 
           if [[ -z "$HASH" || "$HASH" == *"INVALIDHASHPLACEHOLDER"* ]]; then
             echo "❌ Failed to extract a valid hash from Nix build output."

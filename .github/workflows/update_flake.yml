@@ -25,23 +25,23 @@ jobs:
       - name: Update version in flake.nix
         run: |
           sed -i "s/version = \".*\";/version = \"${VERSION}\";/" flake.nix
-          echo "Updated version in flake.nix to ${VERSION}"
+          echo "✅ Updated version in flake.nix to ${VERSION}"
 
       - name: Calculate correct pnpmDeps hash
         id: calc_hash
         run: |
-          # Step 1: Inject deliberately invalid hash
+          # Step 1: Force a known bad hash
           sed -i 's|hash = "sha256-.*";|hash = "sha256-INVALIDHASHPLACEHOLDER000000000000000000000=";|' flake.nix
 
-          # Step 2: Trigger build and capture expected failure output
+          # Step 2: Run the build to trigger mismatch
           output=$(nix build .#packages.x86_64-linux.default 2>&1 || true)
 
-          # Step 3: Extract real hash from build output
-          HASH=$(echo "$output" | grep -o 'got: sha256-[A-Za-z0-9+/=]*' | awk '{print $2}')
+          # Step 3: Extract the correct hash from output
+          HASH=$(echo "$output" | grep 'got: sha256-' | sed -E 's/.*got: (sha256-[A-Za-z0-9+/=]+).*/\1/')
 
           if [[ -z "$HASH" || "$HASH" == *"INVALIDHASHPLACEHOLDER"* ]]; then
             echo "❌ Failed to extract a valid hash from Nix build output."
-            echo "Build output:"
+            echo "Full output:"
             echo "$output"
             exit 1
           fi
@@ -52,7 +52,7 @@ jobs:
       - name: Update hash in flake.nix
         run: |
           sed -i "s|hash = \"sha256-.*\";|hash = \"${HASH}\";|" flake.nix
-          echo "Updated hash in flake.nix to ${HASH}"
+          echo "✅ Updated hash in flake.nix to ${HASH}"
 
       - name: Check for changes
         id: git_diff

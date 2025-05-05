@@ -37,6 +37,7 @@
 
           buildPhase = ''
             runHook preBuild
+            sed -i 's/"version": "0.0.0-semantic-release"/"version": "${finalAttrs.version}"/' package.json
             pnpm build
             runHook postBuild
           '';
